@@ -183,11 +183,11 @@ docker-compose up -e VG_SPEECH_OPEN_THRESHOLD=0.0070
 
 ## License
 
-[Specify your license here]
+MIT License. This project is for educational and research purposes.
 
 ## Author
 
-[Your name or organization]
+Vansh Pal
 
 ## Contributing
 
