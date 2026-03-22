@@ -123,6 +123,64 @@ Use the calibration module for fine-tuning speech detection thresholds:
 from src.app.calibrate_and_test import calibrate
 ```
 
+## Docker Deployment
+
+Visual Gate can be containerized for consistent deployment across different environments.
+
+### Building the Docker Image
+
+```bash
+docker build -t visual-gate:latest .
+```
+
+### Running with Docker Compose
+
+Docker Compose is the recommended way to run Visual Gate with proper device access and volume mounting:
+
+```bash
+docker-compose up
+```
+
+This will:
+- Build the image if it doesn't exist
+- Mount your camera device (`/dev/video0`)
+- Mount audio devices for PulseAudio
+- Mount the `recordings/` directory for persistent output
+- Run the application with all configured environment variables
+
+### Running with Docker CLI
+
+If you prefer direct Docker commands:
+
+```bash
+docker run -it \
+  --device /dev/video0:/dev/video0 \
+  --device /dev/snd:/dev/snd \
+  -v $(pwd)/recordings:/app/recordings \
+  -v /run/user/1000/pulse:/run/user/1000/pulse:ro \
+  -e VG_SAMPLE_RATE=16000 \
+  -e VG_GATE_THRESHOLD_DB=-28.0 \
+  visual-gate:latest
+```
+
+**Note on Audio**: 
+- On **Linux**: PulseAudio socket is mounted from `/run/user/1000/pulse` (adjust UID 1000 if needed)
+- On **macOS/Windows**: Use Docker Desktop with appropriate audio forwarding, or remove the PulseAudio volume mount and configure audio routing separately
+
+### Environment Variables in Docker
+
+All configuration environment variables work the same way in Docker. Override them in `docker-compose.yml` or via `-e` flags:
+
+```bash
+docker-compose up -e VG_SPEECH_OPEN_THRESHOLD=0.0070
+```
+
+### Troubleshooting Docker Setup
+
+- **Camera not detected**: Verify `/dev/video0` exists and you have permissions
+- **No audio**: Check PulseAudio socket path and ensure audio devices are accessible
+- **Permission denied on recordings**: Ensure the host `recordings/` directory has proper permissions
+
 ## License
 
 [Specify your license here]

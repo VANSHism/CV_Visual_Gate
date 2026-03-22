@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  visual-gate:
+    build: .
+    container_name: visual-gate
+    
+    # Grant access to host devices for camera and audio
+    devices:
+      # Camera device (adjust /dev/video0 if you have multiple cameras)
+      - /dev/video0:/dev/video0
+      # Audio devices for PulseAudio
+      - /dev/snd:/dev/snd
+    
+    # Volume mounts
+    volumes:
+      # Mount recordings directory to persist output files
+      - ./recordings:/app/recordings
+      # PulseAudio socket for audio (Linux/Mac only, can be removed for Windows)
+      - /run/user/1000/pulse:/run/user/1000/pulse:ro
+    
+    # Environment variables
+    environment:
+      # Configure camera device (0 = default camera)
+      VG_CAMERA_INDEX: 0
+      # Audio configuration
+      VG_SAMPLE_RATE: 16000
+      VG_CHANNELS: 1
+      # Vision thresholds (adjust for your setup)
+      VG_SPEECH_OPEN_THRESHOLD: 0.00637
+      VG_SPEECH_CLOSE_THRESHOLD: 0.00382
+      # Gate parameters
+      VG_GATE_THRESHOLD_DB: -28.0
+      VG_GATE_KNEE_WIDTH_DB: 10.0
+      VG_GATE_ATTENUATION_DB: 34.0
+      VG_GATE_ATTACK_MS: 20.0
+    
+    # Keep container running
+    stdin_open: true
+    tty: true
+    
+    # Restart policy
+    restart: unless-stopped
