@@ -1,185 +1,226 @@
 # Visual Gate
 
-A Python application that intelligently gates audio based on visual speech detection. Using computer vision to detect lip activity and facial landmarks, Visual Gate automatically mutes or attenuates audio during periods of silence, perfect for podcast recording, video interviews, or live streaming.
+Visual Gate is a Python prototype that combines webcam-based lip activity detection with audio denoising. It records video and microphone input at the same time, uses facial landmarks to estimate when you are speaking, and exports two final comparison videos:
+
+- one video with the original microphone audio
+- one video with processed audio
+
+The project is best understood as an experiment in visually guided audio processing, not yet as a production-grade noise suppression system.
+
+## Current Version
+
+The current app supports **two processing modes**:
+
+- `legacy`: spectral subtraction + soft-knee noise gate
+- `rnnoise`: RNNoise-based denoising with adjustable wet mix
+
+Important behavior in the current version:
+
+- live recording is **silent**: the app no longer plays your processed voice back through the speakers during capture
+- each run now exports exactly **two final `.mp4` files**
+- temporary intermediate audio/video files are created internally and cleaned up after export
+- if `rnnoise` is unavailable or fails during processing, the app falls back to `legacy`
+
+## What The App Does
+
+At a high level, the pipeline works like this:
+
+1. The webcam tracks face landmarks and estimates whether your mouth looks open enough to count as speech.
+2. The microphone captures audio in small chunks.
+3. The selected audio processor (`legacy` or `rnnoise`) processes the audio.
+4. The app saves two final videos:
+   - raw video + raw audio
+   - raw video + processed audio
+
+This makes it easy to compare whether the processing is actually helping.
 
 ## Features
 
-- **Lip Activity Detection**: Uses MediaPipe Face Landmarker to detect speech-related mouth movements
-- **Intelligent Audio Gating**: Soft-knee noise gate with configurable thresholds for smooth audio transitions
-- **Spectral Subtraction**: Optional audio enhancement to reduce background noise
-- **Real-time Processing**: Simultaneous video capture and audio input processing
-- **Audio-Video Muxing**: Automatically synchronizes and combines processed audio with video output
-- **Configurable Parameters**: Environment variables and dataclass-based configuration for all system parameters
+- **Lip Activity Detection**: MediaPipe-based facial landmark tracking for simple speech-state estimation
+- **Two Audio Modes**: `legacy` and `rnnoise`
+- **Silent Live Capture**: No local speaker playback while recording
+- **Side-by-Side Export Strategy**: Raw and processed outputs are both saved for comparison
+- **Environment-Driven Configuration**: Most important parameters can be controlled with environment variables
+- **Automatic MP4 Export**: Final recordings are muxed into ready-to-review `.mp4` files
 
 ## Project Structure
 
-```
+```text
 P10_Visual_Gate/
-├── main.py                      # Main application entry point
-├── requirements.txt             # Python dependencies
-├── src/
-│   ├── config.py               # Configuration dataclasses
-│   ├── app/
-│   │   └── calibrate_and_test.py # Calibration and testing utilities
-│   ├── audio/
-│   │   └── noise_gate.py        # Soft-knee noise gate implementation
-│   ├── control/
-│   │   └── state.py             # Shared state management
-│   ├── dsp/
-│   │   └── spectral_subtract.py # Spectral subtraction audio processing
-│   └── vision/
-│       └── lip_activity.py      # Lip activity detection using MediaPipe
-└── recordings/                  # Output directory for processed videos
+|-- main.py
+|-- requirements.txt
+|-- src/
+|   |-- config.py
+|   |-- app/
+|   |   `-- calibrate_and_test.py
+|   |-- audio/
+|   |   |-- noise_gate.py
+|   |   `-- processor.py
+|   |-- control/
+|   |   `-- state.py
+|   |-- dsp/
+|   |   `-- spectral_subtract.py
+|   `-- vision/
+|       `-- lip_activity.py
+`-- recordings/
 ```
 
 ## Dependencies
 
-- **opencv-python**: Video capture and processing
-- **mediapipe**: Face landmark detection and lip activity recognition
-- **numpy**: Numerical computations
-- **pyaudio**: Audio input/output stream handling
-- **scipy**: Scientific computing utilities
-- **imageio-ffmpeg**: Audio-video muxing via FFmpeg
+- `opencv-python`: video capture and display
+- `mediapipe`: face landmark detection
+- `numpy`: array and signal math
+- `pyaudio`: microphone capture
+- `scipy`: signal utilities
+- `imageio-ffmpeg`: FFmpeg binary fallback for muxing
 
 Install dependencies with:
+
 ```bash
 pip install -r requirements.txt
 ```
 
-Optionally, install system `ffmpeg` for improved muxing performance:
-```bash
-# Windows (via winget or chocolatey)
-winget install FFmpeg
-# or
-choco install ffmpeg
+Optional but recommended:
 
-# macOS (via Homebrew)
+```bash
+# Windows
+winget install FFmpeg
+
+# macOS
 brew install ffmpeg
 
-# Linux (via apt)
+# Linux
 sudo apt-get install ffmpeg
 ```
 
 ## Configuration
 
-Visual Gate is configured via environment variables that override defaults. Key configuration options:
+Configuration is controlled through environment variables.
 
-### Vision Configuration
-- `VG_CAMERA_INDEX` (default: 0): Camera device index
-- `VG_SPEECH_OPEN_THRESHOLD` (default: 0.00637): Lip gap threshold to open gate
-- `VG_SPEECH_CLOSE_THRESHOLD` (default: 0.00382): Lip gap threshold to close gate
-- `VG_MIN_CLOSED_UPDATE_SECONDS` (default: 0.4): Minimum duration gate stays closed
+### Vision
 
-### Audio Configuration
-- `VG_SAMPLE_RATE` (default: 16000): Audio sample rate in Hz
-- `VG_CHANNELS` (default: 1): Number of audio channels
-- `VG_CHUNK_SIZE` (default: 512): Frames per buffer
+- `VG_CAMERA_INDEX` default `0`
+- `VG_SPEECH_OPEN_THRESHOLD` default `0.00637`
+- `VG_SPEECH_CLOSE_THRESHOLD` default `0.00382`
+- `VG_MIN_CLOSED_UPDATE_SECONDS` default `0.4`
 
-### Gate Configuration
-- `VG_GATE_THRESHOLD_DB` (default: -28.0): Gate threshold in dB
-- `VG_GATE_KNEE_WIDTH_DB` (default: 10.0): Knee width for soft gating
-- `VG_GATE_ATTENUATION_DB` (default: 34.0): Maximum attenuation when gate is closed
-- `VG_GATE_ATTACK_MS` (default: 20.0): Gate attack time in milliseconds
+### Audio
 
-Example: Set custom sample rate and gate threshold:
-```bash
-set VG_SAMPLE_RATE=48000 VG_GATE_THRESHOLD_DB=-30.0
+- `VG_SAMPLE_RATE` default `16000`
+- `VG_CHANNELS` default `1`
+- `VG_CHUNK_SIZE` default `512`
+
+### Legacy Mode
+
+- `VG_GATE_THRESHOLD_DB` default `-28.0`
+- `VG_GATE_KNEE_WIDTH_DB` default `10.0`
+- `VG_GATE_ATTENUATION_DB` default `34.0`
+- `VG_GATE_ATTACK_MS` default `20.0`
+- `VG_GATE_RELEASE_MS` default `180.0`
+- `VG_GATE_HOLD_MS` default `60.0`
+- `VG_NOISE_ALPHA` default `0.12`
+- `VG_OVERSUBTRACTION` default `2.2`
+- `VG_FLOOR_RATIO` default `0.03`
+
+### Denoiser Selection
+
+- `VG_DENOISER_MODE` default `legacy`
+  - valid values: `legacy`, `rnnoise`
+- `VG_DENOISER_WET` default `1.0`
+  - used by `rnnoise`
+  - controls blend between original and denoised audio
+  - `0.0` = only original audio
+  - `1.0` = only denoised audio
+
+Example:
+
+```powershell
+$env:VG_DENOISER_MODE="rnnoise"
+$env:VG_DENOISER_WET="0.85"
 python main.py
 ```
 
 ## Usage
 
-Run the application:
+Run the app:
+
 ```bash
 python main.py
 ```
 
-The application will:
-1. Open your default camera
-2. Capture audio and video simultaneously
-3. Detect lip activity in real-time
-4. Apply audio gating based on speech detection
-5. Save processed video and audio files to the `recordings/` directory
-6. Mix audio and video into a final output file
+During a run, the app will:
+
+1. open the webcam
+2. capture microphone audio
+3. estimate speech activity from lip movement
+4. process audio with the selected mode
+5. save exactly two final `.mp4` files
+
+Press `q` in the OpenCV window to stop recording.
 
 ## Output Files
 
-Processed recordings are saved with timestamps in the `recordings/` directory:
-- `output_with_gate_YYYY-MM-DD_HH-MM-SS.mp4` - Final muxed video with gated audio
-- `audio_processed_*.wav` - Processed audio track
-- `raw_audio_*.wav` - Original audio for reference
+Each recording creates exactly two final files in `recordings/`:
 
-## How It Works
+- `session_<timestamp>_raw.mp4`
+- `session_<timestamp>_processed.mp4`
 
-1. **Vision Pipeline**: MediaPipe detects facial landmarks and measures the vertical gap between upper and lower lips
-2. **Speech Detection**: Compares normalized lip gap against configurable thresholds to determine speech activity
-3. **Audio Gating**: When speech is detected, the soft-knee noise gate opens; otherwise, it attenuates audio based on knee characteristics
-4. **Output**: Gated audio is mixed with video and saved to file
+Meaning:
 
-## Calibration and Testing
+- `raw.mp4` = webcam video + original microphone audio
+- `processed.mp4` = webcam video + processed audio
 
-Use the calibration module for fine-tuning speech detection thresholds:
-```python
-from src.app.calibrate_and_test import calibrate
-```
+Intermediate files are stored temporarily and cleaned up automatically.
 
-## Docker Deployment
+## How The Two Modes Work
 
-Visual Gate can be containerized for consistent deployment across different environments.
+### `legacy`
 
-### Building the Docker Image
+This is the older hand-built DSP pipeline:
 
-```bash
-docker build -t visual-gate:latest .
-```
+- estimates a background noise profile during non-speaking moments
+- applies spectral subtraction
+- applies a soft-knee noise gate
 
-### Running with Docker Compose
+This mode is useful for experimentation, but it can sound muffled or choppy if tuned too aggressively.
 
-Docker Compose is the recommended way to run Visual Gate with proper device access and volume mounting:
+### `rnnoise`
 
-```bash
-docker-compose up
-```
+This mode uses RNNoise through the installed Python backend.
 
-This will:
-- Build the image if it doesn't exist
-- Mount your camera device (`/dev/video0`)
-- Mount audio devices for PulseAudio
-- Mount the `recordings/` directory for persistent output
-- Run the application with all configured environment variables
+- aims to preserve speech better than simple gating/subtraction
+- supports `VG_DENOISER_WET` so you can mix denoised audio with the original
+- falls back to `legacy` if RNNoise cannot be initialized or fails during processing
 
-### Running with Docker CLI
+## Known Limitations
 
-If you prefer direct Docker commands:
+This project is still a prototype. Current limitations include:
+
+- noise suppression quality is not consistently better than raw microphone audio
+- webcam lip activity is only a rough speech cue, not true speech understanding
+- visually guided gating helps most with pauses, not with noise mixed under speech
+- `legacy` mode can introduce muffling, pumping, or chopped speech
+- `rnnoise` integration is functional, but still not heavily tuned for every microphone/environment
+
+## Calibration
+
+You can use the calibration helper to estimate better lip thresholds:
 
 ```bash
-docker run -it \
-  --device /dev/video0:/dev/video0 \
-  --device /dev/snd:/dev/snd \
-  -v $(pwd)/recordings:/app/recordings \
-  -v /run/user/1000/pulse:/run/user/1000/pulse:ro \
-  -e VG_SAMPLE_RATE=16000 \
-  -e VG_GATE_THRESHOLD_DB=-28.0 \
-  visual-gate:latest
+python src/app/calibrate_and_test.py
 ```
 
-**Note on Audio**: 
-- On **Linux**: PulseAudio socket is mounted from `/run/user/1000/pulse` (adjust UID 1000 if needed)
-- On **macOS/Windows**: Use Docker Desktop with appropriate audio forwarding, or remove the PulseAudio volume mount and configure audio routing separately
+This helps the vision side decide more reliably when you are speaking.
 
-### Environment Variables in Docker
+## Notes Before Pushing
 
-All configuration environment variables work the same way in Docker. Override them in `docker-compose.yml` or via `-e` flags:
+This README describes the current behavior of the repository:
 
-```bash
-docker-compose up -e VG_SPEECH_OPEN_THRESHOLD=0.0070
-```
+- no `bypass` mode
+- no live local audio playback during recording
+- only two final MP4 outputs per run
 
-### Troubleshooting Docker Setup
-
-- **Camera not detected**: Verify `/dev/video0` exists and you have permissions
-- **No audio**: Check PulseAudio socket path and ensure audio devices are accessible
-- **Permission denied on recordings**: Ensure the host `recordings/` directory has proper permissions
+If you change the export format or denoiser modes later, update this section first so the repo stays accurate.
 
 ## License
 
@@ -191,4 +232,4 @@ Vansh Pal
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit pull requests or open issues for bugs and feature requests.
+Contributions, experiments, and improvement ideas are welcome.

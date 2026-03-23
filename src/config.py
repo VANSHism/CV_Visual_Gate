@@ -62,8 +62,16 @@ class DspConfig:
 
 
 @dataclass
+class DenoiserConfig:
+    mode: str = field(default_factory=lambda: os.getenv("VG_DENOISER_MODE", "legacy").strip().lower())
+    wet_mix: float = field(default_factory=lambda: _env_float("VG_DENOISER_WET", 1.0))
+    preferred_sample_rate: int = field(default_factory=lambda: _env_int("VG_DENOISER_SAMPLE_RATE", 48000))
+
+
+@dataclass
 class AppConfig:
     vision: VisionConfig = field(default_factory=VisionConfig)
     audio: AudioConfig = field(default_factory=AudioConfig)
     gate: GateConfig = field(default_factory=GateConfig)
     dsp: DspConfig = field(default_factory=DspConfig)
+    denoiser: DenoiserConfig = field(default_factory=DenoiserConfig)

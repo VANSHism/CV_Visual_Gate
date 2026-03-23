@@ -4,3 +4,4 @@ numpy
 pyaudio
 scipy
 imageio-ffmpeg
+pyrnnoise
